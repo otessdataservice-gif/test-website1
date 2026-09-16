@@ -3,8 +3,9 @@
   "version": "1.0.0",
   "private": true,
   "description": "TaskFlow: React frontend and Express API, deployable as one service",
+  "//build": "Hosts set NODE_ENV=production, which makes npm skip devDependencies. The client needs its dev tools (vite, tailwind) to build at all, so ask for them explicitly; the server genuinely does not need its own.",
   "scripts": {
-    "build": "npm install --prefix server && npm install --prefix client && npm run build --prefix client",
+    "build": "npm install --omit=dev --prefix server && npm install --include=dev --prefix client && npm run build --prefix client",
     "start": "npm start --prefix server",
     "test": "npm run test:api --prefix server",
     "dev:server": "npm run dev --prefix server",
