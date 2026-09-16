@@ -57,6 +57,10 @@ MongoDB
 The frontend is a static bundle. It holds a JWT in localStorage and sends it on every API call. The
 API verifies that token, loads the user it belongs to, and scopes every task query to that user.
 
+In production these run as **one service**: Express serves the built React app from `client/dist` and
+the API under `/api`, on the same port and the same origin. In development they are split, with Vite
+on 5173 for hot reload and the API on 5000.
+
 Request path for a protected route:
 
 ```
@@ -73,10 +77,12 @@ request -> helmet -> cors -> json parser -> rate limiter
 
 ```
 .
+├── package.json             build and start scripts Render runs
 ├── client/                  React frontend
 │   ├── public/
 │   │   ├── favicon.svg
-│   │   └── _redirects       SPA fallback for static hosting
+│   │   ├── theme.js         applies the saved theme before first paint
+│   │   └── _redirects       SPA fallback, only used for static hosting
 │   ├── src/
 │   │   ├── components/      Header, TaskCard, Modal, ConfirmDialog, ...
 │   │   ├── context/         AuthContext, ThemeContext, ToastContext
@@ -140,7 +146,7 @@ cp .env.example .env      # Windows: copy .env.example .env
 | `MONGODB_URI`    | yes      | MongoDB connection string. The server refuses to start without it. |
 | `JWT_SECRET`     | yes      | Long random string used to sign tokens. The server exits if it is missing. |
 | `JWT_EXPIRES_IN` | no       | Token lifetime. Defaults to `7d`.                                |
-| `CLIENT_URL`     | no       | Origin allowed by CORS. Comma separate for more than one. Defaults to `http://localhost:5173`. |
+| `CLIENT_URL`     | no       | Extra origin allowed by CORS, comma separate for several. Only needed when the frontend is hosted separately: same-origin requests are always allowed. Defaults to `http://localhost:5173` for the Vite dev server. |
 
 Generate a secret:
 
@@ -150,9 +156,11 @@ node -e "console.log(require('crypto').randomBytes(48).toString('hex'))"
 
 ### client/.env
 
+Optional. Leave it out entirely for both local development and single service hosting.
+
 | Variable       | Required | What it is                                              |
 | -------------- | -------- | ------------------------------------------------------- |
-| `VITE_API_URL` | yes      | Base URL of the API, for example `http://localhost:5000` |
+| `VITE_API_URL` | no       | Base URL of the API. Unset means `http://localhost:5000` in `npm run dev`, and the same origin in a production build. Set it only when the frontend is hosted separately from the API. |
 
 Anything prefixed with `VITE_` ends up in the browser bundle, so it is public. Never put
 `MONGODB_URI` or `JWT_SECRET` in the client env file.
@@ -204,6 +212,13 @@ npm run dev
 ```
 
 Open http://localhost:5173, create an account, and add a task.
+
+To run it the way Render will, as a single service on one port:
+
+```bash
+npm run build      # from the repo root: installs both, builds the client
+npm start          # everything on http://localhost:5000
+```
 
 Run the API test suite (starts its own in-memory MongoDB, needs no configuration):
 
@@ -301,18 +316,21 @@ audit logging. Good enough for a demonstration, not a claim that it is bulletpro
 
 ## Render deployment
 
-Push this repository to GitHub first. Then either use `render.yaml` (New, Blueprint) or create the
-two services by hand as below.
+One web service hosts everything. The build compiles the React app into `client/dist`, and Express
+serves those files alongside `/api`, so the frontend and the API share a single origin and a single
+URL. No static site, no CORS setup, no second service to pay for.
 
-### 1. Backend, a Web Service
+Push this repository to GitHub, then either use `render.yaml` (New, Blueprint) or create the service
+by hand:
 
-| Setting        | Value           |
-| -------------- | --------------- |
-| Root directory | `server`        |
-| Runtime        | Node            |
-| Build command  | `npm install`   |
-| Start command  | `npm start`     |
-| Health check   | `/api/health`   |
+| Setting            | Value                    |
+| ------------------ | ------------------------ |
+| Type               | Web Service              |
+| Runtime            | Node                     |
+| Root directory     | *(leave blank, the repo root)* |
+| **Build command**  | `npm run build`          |
+| **Start command**  | `npm start`              |
+| Health check path  | `/api/health`            |
 
 Environment variables:
 
@@ -320,35 +338,30 @@ Environment variables:
 NODE_ENV=production
 MONGODB_URI=<your Atlas connection string>
 JWT_SECRET=<long random string>
-CLIENT_URL=<your frontend URL, added after step 2>
 ```
+
+That is the whole list. `CLIENT_URL` and `VITE_API_URL` are not needed here: the browser is already
+on the same origin as the API, and the server allows same-origin requests automatically.
 
 Do not set `PORT`. Render provides it and the server reads `process.env.PORT`.
 
-### 2. Frontend, a Static Site
-
-| Setting           | Value                       |
-| ----------------- | --------------------------- |
-| Root directory    | `client`                    |
-| Build command     | `npm install && npm run build` |
-| Publish directory | `dist`                      |
-
-Environment variable:
+What the two commands do:
 
 ```
-VITE_API_URL=https://your-api-name.onrender.com
+npm run build  ->  npm install in server/, npm install in client/, then vite build
+npm start      ->  node server.js, which serves /api and client/dist
 ```
 
-`public/_redirects` sends every path to `index.html`, so refreshing `/dashboard` works.
+Deep links work: Express sends `index.html` for any path that is not `/api/...` or a built asset, so
+refreshing `/dashboard` loads the app instead of a 404.
 
-### 3. Join them up
+### Hosting the frontend separately instead
 
-Go back to the backend service and set `CLIENT_URL` to the static site URL, for example
-`https://taskflow-web.onrender.com`, then redeploy it. Without this, the browser blocks API calls
-with a CORS error.
-
-Vite reads env variables at build time, so changing `VITE_API_URL` needs a rebuild, not just a
-restart.
+If you would rather run a static site plus a web service, the code supports it. Create the web
+service with root directory `server`, build `npm install`, start `npm start`; create the static site
+with root directory `client`, build `npm install && npm run build`, publish directory `dist`. Then
+set `VITE_API_URL` on the static site to the API URL, and `CLIENT_URL` on the API to the static site
+URL so CORS allows it. `client/public/_redirects` handles the SPA fallback there.
 
 ---
 
@@ -359,19 +372,25 @@ restart.
 
 **`JWT_SECRET is not set`, the server exits immediately** — same cause, add the variable.
 
-**Login works locally but fails on Render with a CORS error** — `CLIENT_URL` on the backend does not
-match the frontend origin exactly. No trailing slash, and https not http.
+**Blank page on Render, console says a script was blocked or failed** — usually a stale build. Clear
+the build cache and redeploy. On a single service the frontend and API share an origin, so CORS is
+not involved.
 
-**Every API call fails with "Cannot reach the server"** — `VITE_API_URL` is wrong or the API is
-asleep. Free Render services sleep after inactivity and take about 30 seconds to wake up.
+**CORS error, split hosting only** — `CLIENT_URL` on the API does not match the frontend origin
+exactly. No trailing slash, and https not http.
+
+**Every API call fails with "Cannot reach the server"** — on a single service, the API failed to
+start, so check the Render logs for the MongoDB connection. On split hosting, `VITE_API_URL` is
+wrong. Either way, free Render services sleep after inactivity and take about 30 seconds to wake up.
 
 **Atlas connection times out** — the cluster's Network Access list does not include Render. Allow
 `0.0.0.0/0`.
 
 **401 on every request after a while** — the token expired, seven days by default. Log in again.
 
-**Refreshing `/dashboard` gives a 404 on Render** — the static site is not rewriting to
-`index.html`. Confirm `client/public/_redirects` was included in the build.
+**Refreshing `/dashboard` gives a 404 on Render** — on a single service this means `client/dist` was
+not built, so Express is running API only. Check that the build command is `npm run build` from the
+repo root. On a static site, confirm `client/public/_redirects` was included in the build.
 
 **429 Too many requests** — the auth rate limit, 20 per 15 minutes. Wait, or raise the limit in
 `server/routes/authRoutes.js` while developing.

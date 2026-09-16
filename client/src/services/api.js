@@ -4,7 +4,18 @@
  * error shape are handled once.
  */
 
-const API_URL = (import.meta.env.VITE_API_URL || 'http://localhost:5000').replace(/\/$/, '');
+/**
+ * Where the API lives.
+ *
+ * - VITE_API_URL set: use it (frontend and API on separate hosts).
+ * - Not set, production build: '' means same origin, which is what the single
+ *   Render web service needs, where Express serves this bundle and /api.
+ * - Not set, development: the local API on port 5000, with Vite on 5173.
+ */
+const RAW_API_URL =
+  import.meta.env.VITE_API_URL ?? (import.meta.env.DEV ? 'http://localhost:5000' : '');
+
+const API_URL = RAW_API_URL.replace(/\/$/, '');
 const TOKEN_KEY = 'taskflow-token';
 
 export function getToken() {

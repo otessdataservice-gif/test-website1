@@ -10,19 +10,8 @@
       content="TaskFlow is a simple task manager: write down what you have to do, tick it off, and keep the list in one place."
     />
     <title>TaskFlow</title>
-    <script>
-      // Applied before first paint so a dark-mode user never sees a white flash.
-      try {
-        var saved = localStorage.getItem('taskflow-theme');
-        var prefersDark =
-          window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
-        if (saved === 'dark' || (!saved && prefersDark)) {
-          document.documentElement.classList.add('dark');
-        }
-      } catch (e) {
-        /* localStorage blocked, fall back to light */
-      }
-    </script>
+    <!-- Applied before first paint so a dark mode user never sees a white flash. -->
+    <script src="/theme.js"></script>
   </head>
   <body>
     <div id="root"></div>
