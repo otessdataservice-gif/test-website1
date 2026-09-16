@@ -1,0 +1,38 @@
+# Optional Render blueprint. You can also create both services by hand in the
+# Render dashboard using the settings in README.md.
+#
+# MONGODB_URI and JWT_SECRET are marked sync:false so Render asks you for them
+# instead of storing them in this file.
+
+services:
+  - type: web
+    name: taskflow-api
+    runtime: node
+    plan: free
+    rootDir: server
+    buildCommand: npm install
+    startCommand: npm start
+    healthCheckPath: /api/health
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: MONGODB_URI
+        sync: false
+      - key: JWT_SECRET
+        generateValue: true
+      - key: CLIENT_URL
+        sync: false
+
+  - type: web
+    name: taskflow-web
+    runtime: static
+    rootDir: client
+    buildCommand: npm install && npm run build
+    staticPublishPath: dist
+    envVars:
+      - key: VITE_API_URL
+        sync: false
+    routes:
+      - type: rewrite
+        source: /*
+        destination: /index.html

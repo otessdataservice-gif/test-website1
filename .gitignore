@@ -1,0 +1,24 @@
+# dependencies
+node_modules/
+
+# environment files: never commit real secrets
+.env
+.env.local
+.env.*.local
+
+# builds
+dist/
+build/
+
+# logs
+*.log
+npm-debug.log*
+
+# editor / OS
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+
+# mongodb-memory-server binaries downloaded for tests
+.cache/

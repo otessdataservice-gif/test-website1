@@ -1,0 +1,31 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <meta name="theme-color" content="#059669" />
+    <meta
+      name="description"
+      content="TaskFlow is a simple task manager: write down what you have to do, tick it off, and keep the list in one place."
+    />
+    <title>TaskFlow</title>
+    <script>
+      // Applied before first paint so a dark-mode user never sees a white flash.
+      try {
+        var saved = localStorage.getItem('taskflow-theme');
+        var prefersDark =
+          window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
+        if (saved === 'dark' || (!saved && prefersDark)) {
+          document.documentElement.classList.add('dark');
+        }
+      } catch (e) {
+        /* localStorage blocked, fall back to light */
+      }
+    </script>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.jsx"></script>
+  </body>
+</html>
